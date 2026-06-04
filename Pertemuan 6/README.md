@@ -1,249 +1,168 @@
-# Modul V – Penerapan Real-Time Operating System (RTOS)
+# Modul IV – Interrupt dan Timer pada Arduino
 
-**Nama:** Aurellia Nabila Rahma Putri
+**Nama:** Aurellia Nabila Rahma Putri 
 **NIM:** H1H024066
 **Asisten:** Arga Aryanta Indrafata
 
-## Pendahuluan
+## Deskripsi
 
-Pada praktikum ini dilakukan implementasi **FreeRTOS** pada papan mikrokontroler Arduino Uno. Tujuan utama praktikum adalah memahami konsep multitasking dan komunikasi antar-task dalam sistem operasi waktu nyata.
+Pada praktikum ini dilakukan pengujian penggunaan **interrupt eksternal** dan **timer berbasis fungsi millis()** pada Arduino Uno.
 
-Praktikum dibagi menjadi dua bagian utama:
+Praktikum terdiri dari dua percobaan utama:
 
-* **Percobaan 5A** – Implementasi beberapa task yang berjalan secara bersamaan menggunakan fungsi `xTaskCreate()` dan `vTaskDelay()`.
-* **Percobaan 5B** – Pertukaran data antar-task dengan memanfaatkan mekanisme **message queue** melalui `xQueueCreate()`, `xQueueSend()`, dan `xQueueReceive()`.
-
----
-
-## Peralatan dan Komponen
-
-| Komponen                     | Jumlah     |
-| ---------------------------- | ---------- |
-| Arduino Uno                  | 1 buah     |
-| LED Merah                    | 1 buah     |
-| LED Kuning                   | 1 buah     |
-| Resistor 220Ω                | 2 buah     |
-| Breadboard                   | 1 buah     |
-| Kabel Jumper                 | Secukupnya |
-| Sensor DHT (untuk 5B)        | 1 buah     |
-| PC/Laptop dengan Arduino IDE | 1 unit     |
-
-Library yang digunakan dalam praktikum ini adalah **Arduino_FreeRTOS**.
+* **Percobaan 1** – Pengendalian LED menggunakan interrupt eksternal melalui push button.
+* **Percobaan 2** – Pengendalian LED menggunakan timer non-blocking dengan fungsi `millis()`.
 
 ---
 
-# Percobaan 5A – Multitasking pada FreeRTOS
+## Alat dan Bahan
 
-## Rangkaian
+| Komponen               | Jumlah     |
+| ---------------------- | ---------- |
+| Arduino Uno            | 1          |
+| LED Merah              | 1          |
+| LED Kuning             | 1          |
+| Push Button            | 1          |
+| Resistor 220Ω          | 2          |
+| Breadboard             | 1          |
+| Kabel Jumper           | Secukupnya |
+| Komputer + Arduino IDE | 1          |
 
-Konfigurasi rangkaian yang digunakan adalah sebagai berikut:
+---
 
-* LED Merah terhubung ke pin **D8** melalui resistor 220Ω menuju GND.
-* LED Kuning terhubung ke pin **D10** melalui resistor 220Ω menuju GND.
+# Percobaan 1 – Interrupt Eksternal
 
-## Program
+## Skema Rangkaian
+
+* LED Merah → Pin D13 → Resistor 220Ω → GND
+* LED Kuning → Pin D12 → Resistor 220Ω → GND
+* Push Button → Pin D2 → GND
+* Pin D2 menggunakan internal pull-up resistor Arduino
+
+## Kode Program
 
 ```cpp
-#include <Arduino_FreeRTOS.h>
+#include <Arduino.h>
 
-// Deklarasi task
-void TaskBlink1(void *pvParameters);
-void TaskBlink2(void *pvParameters);
-void Taskprint(void *pvParameters);
+volatile bool ledState = false;
+
+void tombolInterrupt() {
+  ledState = !ledState;
+}
 
 void setup() {
-  Serial.begin(9600);
+  pinMode(13, OUTPUT);
+  pinMode(12, OUTPUT);
 
-  xTaskCreate(TaskBlink1, "Blink1", 128, NULL, 1, NULL);
-  xTaskCreate(TaskBlink2, "Blink2", 128, NULL, 1, NULL);
-  xTaskCreate(Taskprint, "Print", 128, NULL, 1, NULL);
+  pinMode(2, INPUT_PULLUP);
+
+  attachInterrupt(
+    digitalPinToInterrupt(2),
+    tombolInterrupt,
+    FALLING
+  );
 }
 
 void loop() {
-}
-
-void TaskBlink1(void *pvParameters) {
-  pinMode(8, OUTPUT);
-  for (;;) {
-    digitalWrite(8, HIGH);
-    vTaskDelay(200 / portTICK_PERIOD_MS);
-    digitalWrite(8, LOW);
-    vTaskDelay(200 / portTICK_PERIOD_MS);
-  }
-}
-
-void TaskBlink2(void *pvParameters) {
-  pinMode(10, OUTPUT);
-  for (;;) {
-    digitalWrite(10, HIGH);
-    vTaskDelay(300 / portTICK_PERIOD_MS);
-    digitalWrite(10, LOW);
-    vTaskDelay(300 / portTICK_PERIOD_MS);
-  }
-}
-
-void Taskprint(void *pvParameters) {
-  int counter = 0;
-  for (;;) {
-    Serial.print("Counter: ");
-    Serial.println(counter++);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-  }
+  digitalWrite(13, ledState);
+  digitalWrite(12, ledState);
 }
 ```
 
-## Penjelasan Program
+## Penjelasan Tiap Baris Penting
 
-Pada percobaan ini dibuat tiga task yang dijalankan secara bersamaan oleh scheduler FreeRTOS.
+| Fungsi / Perintah          | Penjelasan                                                               |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `volatile bool ledState`   | Menyimpan status LED yang dapat diubah oleh interrupt.                   |
+| `tombolInterrupt()`        | ISR (*Interrupt Service Routine*) yang dieksekusi ketika tombol ditekan. |
+| `ledState = !ledState`     | Membalik kondisi LED dari ON ke OFF atau sebaliknya.                     |
+| `pinMode(2, INPUT_PULLUP)` | Mengaktifkan resistor pull-up internal pada pin input.                   |
+| `attachInterrupt()`        | Menghubungkan pin interrupt dengan ISR.                                  |
+| `FALLING`                  | Interrupt aktif saat sinyal berubah dari HIGH menjadi LOW.               |
+| `digitalWrite()`           | Mengatur kondisi LED sesuai nilai variabel `ledState`.                   |
 
-| Fungsi/Perintah                 | Keterangan                                                                                             |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `#include <Arduino_FreeRTOS.h>` | Mengaktifkan fitur FreeRTOS pada Arduino.                                                              |
-| `xTaskCreate()`                 | Digunakan untuk membuat task baru yang akan dikelola scheduler.                                        |
-| `vTaskDelay()`                  | Menunda eksekusi task selama waktu tertentu tanpa menghentikan task lain.                              |
-| `for(;;)`                       | Loop tak terbatas yang digunakan dalam task FreeRTOS.                                                  |
-| `loop()` kosong                 | Setelah scheduler berjalan, seluruh proses ditangani oleh task sehingga `loop()` tidak digunakan lagi. |
+## Cara Kerja
 
-## Pengembangan Menggunakan Potensiometer
-
-Sebagai modifikasi, ditambahkan task baru yang membaca nilai potensiometer pada pin `A0`. Data ADC kemudian dikonversi menjadi waktu delay sehingga kecepatan kedipan LED dapat diatur secara langsung.
-
-```cpp
-void TaskPot(void *pvParameters) {
-  for (;;) {
-    int adcVal = analogRead(A0);
-    int delayMs = map(adcVal, 0, 1023, 50, 1000);
-
-    digitalWrite(8, HIGH);
-    vTaskDelay(delayMs / portTICK_PERIOD_MS);
-
-    digitalWrite(8, LOW);
-    vTaskDelay(delayMs / portTICK_PERIOD_MS);
-  }
-}
-```
-
-Semakin besar nilai ADC yang terbaca, maka interval kedipan LED menjadi semakin cepat. Sebaliknya, jika nilai ADC kecil maka LED akan berkedip lebih lambat.
+Ketika tombol ditekan, sinyal pada pin D2 berubah dari HIGH ke LOW sehingga interrupt dipicu. ISR kemudian dijalankan dan mengubah nilai `ledState`. Nilai tersebut digunakan untuk mengatur LED pada pin D12 dan D13 sehingga kedua LED akan berganti kondisi setiap kali tombol ditekan.
 
 ---
 
-# Percobaan 5B – Komunikasi Antar Task Menggunakan Queue
+# Percobaan 2 – Timer Non-Blocking Menggunakan millis()
 
-## Rangkaian
+## Skema Rangkaian
 
-Percobaan ini hanya memanfaatkan Arduino Uno yang terhubung ke komputer melalui kabel USB untuk menampilkan data pada Serial Monitor.
+* LED Merah → Pin D13 → Resistor 220Ω → GND
+* LED Kuning → Pin D12 → Resistor 220Ω → GND
 
-## Program
+## Kode Program
 
 ```cpp
-#include <Arduino_FreeRTOS.h>
-#include <queue.h>
+#include <Arduino.h>
 
-struct readings {
-  int temp;
-  int h;
-};
-
-QueueHandle_t dataQueue;
-
-void read_data(void *pvParameters);
-void display(void *pvParameters);
+unsigned long previousMillis = 0;
+const long interval = 1000;
+bool ledState = false;
 
 void setup() {
-  Serial.begin(9600);
-
-  dataQueue = xQueueCreate(1, sizeof(struct readings));
-
-  xTaskCreate(read_data, "ReadData", 128, NULL, 1, NULL);
-  xTaskCreate(display, "Display", 128, NULL, 1, NULL);
+  pinMode(13, OUTPUT);
+  pinMode(12, OUTPUT);
 }
 
 void loop() {
-}
+  unsigned long currentMillis = millis();
 
-void read_data(void *pvParameters) {
-  struct readings sensorData;
+  if(currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
 
-  for (;;) {
-    sensorData.temp = 54;
-    sensorData.h = 30;
+    ledState = !ledState;
 
-    xQueueSend(dataQueue, &sensorData, portMAX_DELAY);
-
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-  }
-}
-
-void display(void *pvParameters) {
-  struct readings received;
-
-  for (;;) {
-    if (xQueueReceive(dataQueue, &received, portMAX_DELAY) == pdPASS) {
-      Serial.print("temp = ");
-      Serial.println(received.temp);
-
-      Serial.print("humidity = ");
-      Serial.println(received.h);
-    }
+    digitalWrite(13, ledState);
+    digitalWrite(12, ledState);
   }
 }
 ```
 
-## Penjelasan Program
+## Penjelasan Tiap Baris Penting
 
-Queue digunakan sebagai media pertukaran data antara task pengirim dan task penerima.
+| Fungsi / Perintah                                | Penjelasan                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------------------ |
+| `millis()`                                       | Mengembalikan waktu sejak Arduino mulai berjalan dalam satuan milidetik. |
+| `previousMillis`                                 | Menyimpan waktu terakhir saat LED berubah kondisi.                       |
+| `interval`                                       | Menentukan periode perubahan LED, yaitu 1000 ms.                         |
+| `currentMillis`                                  | Menyimpan waktu saat ini dari fungsi `millis()`.                         |
+| `if(currentMillis - previousMillis >= interval)` | Mengecek apakah interval yang ditentukan sudah terlampaui.               |
+| `ledState = !ledState`                           | Mengubah status LED menjadi kebalikannya.                                |
+| `digitalWrite()`                                 | Mengirim nilai HIGH atau LOW ke pin LED.                                 |
 
-| Fungsi/Perintah   | Keterangan                                                       |
-| ----------------- | ---------------------------------------------------------------- |
-| `struct readings` | Menyimpan data suhu dan kelembapan dalam satu struktur data.     |
-| `xQueueCreate()`  | Membentuk queue dengan kapasitas tertentu.                       |
-| `xQueueSend()`    | Mengirim data ke dalam queue.                                    |
-| `xQueueReceive()` | Mengambil data dari queue untuk diproses.                        |
-| `portMAX_DELAY`   | Membuat task menunggu tanpa batas waktu sampai operasi berhasil. |
-| `pdPASS`          | Menunjukkan bahwa operasi queue berhasil dilakukan.              |
+## Cara Kerja
 
-## Modifikasi Menggunakan Sensor DHT11
-
-Pada tahap pengembangan, data simulasi diganti dengan pembacaan langsung dari sensor DHT11 sehingga nilai suhu dan kelembapan yang diperoleh sesuai kondisi lingkungan sebenarnya.
-
-```cpp
-#include <DHT.h>
-
-#define DHTPIN 7
-#define DHTTYPE DHT11
-
-DHT dht(DHTPIN, DHTTYPE);
-
-void read_data(void *pvParameters) {
-  struct readings sensorData;
-
-  dht.begin();
-
-  for (;;) {
-    sensorData.temp = (int)dht.readTemperature();
-    sensorData.h = (int)dht.readHumidity();
-
-    xQueueSend(dataQueue, &sensorData, portMAX_DELAY);
-
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
-  }
-}
-```
-
-Dengan penggunaan sensor DHT11, data yang dikirim melalui queue menjadi dinamis dan mencerminkan kondisi lingkungan saat pengukuran berlangsung.
+Program memanfaatkan fungsi `millis()` untuk menghitung waktu tanpa menggunakan `delay()`. Setiap kali selisih waktu mencapai 1000 ms, status LED dibalik. Dengan metode ini mikrokontroler tetap dapat menjalankan proses lain karena tidak terblokir oleh fungsi delay.
 
 ---
 
-# Hasil dan Analisis
+# Modifikasi Program
 
-| Percobaan | Parameter Pengujian           | Hasil                                                                       |
-| --------- | ----------------------------- | --------------------------------------------------------------------------- |
-| 5A        | Eksekusi multitasking         | Seluruh task dapat berjalan bersamaan tanpa gangguan.                       |
-| 5A        | Tampilan Serial Monitor       | Counter meningkat secara berkala setiap 500 ms.                             |
-| 5A        | Kinerja Scheduler             | Scheduler mampu mengatur eksekusi task sesuai periode masing-masing.        |
-| 5B        | Pengiriman data melalui queue | Data berhasil ditransmisikan dan diterima dengan baik.                      |
-| 5B        | Tampilan data                 | Nilai temperatur dan kelembapan muncul secara berulang pada Serial Monitor. |
+Pada percobaan ini dilakukan modifikasi dengan menambahkan LED kedua pada pin D12. Kedua LED dikendalikan secara bersamaan sehingga ketika kondisi berubah menjadi HIGH, kedua LED akan menyala, dan ketika berubah menjadi LOW, kedua LED akan mati.
+
+```cpp
+digitalWrite(13, ledState);
+digitalWrite(12, ledState);
+```
+
+Hasil modifikasi menunjukkan bahwa kedua LED berkedip secara sinkron mengikuti interval yang telah ditentukan.
+
+---
+
+# Hasil Percobaan
+
+| Percobaan  | Parameter            | Hasil                                       |
+| ---------- | -------------------- | ------------------------------------------- |
+| 1          | Interrupt eksternal  | Berfungsi dengan baik saat tombol ditekan   |
+| 1          | Perubahan status LED | LED berubah ON/OFF setiap interrupt terjadi |
+| 2          | Timer millis()       | LED berkedip setiap 1000 ms                 |
+| 2          | Non-blocking timer   | Program berjalan tanpa menggunakan delay()  |
+| Modifikasi | Dua LED bersamaan    | Kedua LED menyala dan mati secara sinkron   |
 
 ## Kesimpulan
 
-Berdasarkan hasil praktikum, FreeRTOS mampu menjalankan beberapa task secara paralel pada Arduino Uno dengan pengelolaan waktu yang efisien. Selain itu, penggunaan queue mempermudah proses komunikasi antar-task sehingga data dapat ditransmisikan secara aman dan terstruktur. Implementasi ini menunjukkan bahwa FreeRTOS sangat bermanfaat dalam pengembangan sistem embedded yang membutuhkan multitasking dan sinkronisasi data.
+Berdasarkan hasil praktikum, interrupt eksternal memungkinkan Arduino merespons kejadian dari luar secara cepat tanpa perlu melakukan polling secara terus-menerus. Selain itu, fungsi `millis()` dapat digunakan sebagai timer non-blocking yang lebih efisien dibandingkan `delay()`, karena tidak menghentikan jalannya program selama proses penundaan berlangsung.
